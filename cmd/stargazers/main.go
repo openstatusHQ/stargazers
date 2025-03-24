@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/urfave/cli/v3"
-	"thibaultleouay.dev/stargazers/internal/stargazers"
+	"thibaultleouay.dev/stargazers/internal/action"
 )
 
 func main() {
@@ -23,27 +23,46 @@ func main() {
 				Sources:  cli.EnvVars("GITHUB_TOKEN"),
 				Required: true,
 			},
+
 			&cli.StringFlag{
-				Name:     "owner",
-				Usage:    "The owner/organization of the repository",
-				Aliases:  []string{"o"},
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:     "name",
-				Usage:    "The repository name",
-				Aliases:  []string{"n"},
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:        "file",
+				Name:        "output",
 				Usage:       "The output file",
-				Aliases:     []string{"f"},
-				Value:       "stargazers.csv",
 				DefaultText: "stargazers.csv",
+				// Aliases:     []string{"o"},
 			},
 		},
-		Action: stargazers.Stargazers,
+		Commands: []*cli.Command{
+			{
+				Name:   "insights",
+				Usage:  "Get the stargazers insights",
+				Action: action.Stargazers,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "owner",
+						Usage:    "The owner/organization of the repository",
+						Aliases:  []string{"o"},
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "name",
+						Usage:    "The repository name",
+						Aliases:  []string{"n"},
+						Required: true,
+					},
+				},
+			},
+			{
+				Name:   "company",
+				Usage:  "Get the stargazers company",
+				Action: action.Company,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "input",
+						Value: "stargazers.csv",
+					},
+				},
+			},
+		},
 	}
 	if err := app.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
