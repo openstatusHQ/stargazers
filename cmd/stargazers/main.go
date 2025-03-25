@@ -10,25 +10,18 @@ import (
 )
 
 func main() {
+
 	app := &cli.Command{
 		Name:      "stargazers",
 		Usage:     "Get your insights from your Stargazers",
-		UsageText: "stargazers -github-token <token> -owner <owner> -name <repo>",
+		UsageText: "stargazers [global options] command [command options] [arguments...]",
 		Version:   "0.0.1",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "github-token",
-				Usage:    "Your GitHub access token",
-				Aliases:  []string{"t"},
-				Sources:  cli.EnvVars("GITHUB_TOKEN"),
-				Required: true,
-			},
-
-			&cli.StringFlag{
-				Name:        "output",
-				Usage:       "The output file",
-				DefaultText: "stargazers.csv",
-				// Aliases:     []string{"o"},
+				Name:    "config",
+				Usage:   "Your config file",
+				Aliases: []string{"c"},
+				Value:   "stargazers.yaml",
 			},
 		},
 		Commands: []*cli.Command{
@@ -36,31 +29,30 @@ func main() {
 				Name:   "insights",
 				Usage:  "Get the stargazers insights",
 				Action: action.Stargazers,
+			},
+			{
+				Name:   "sync",
+				Usage:  "Sync your data",
+				Action: action.Sync,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name:     "owner",
-						Usage:    "The owner/organization of the repository",
-						Aliases:  []string{"o"},
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "The repository name",
-						Aliases:  []string{"n"},
+						Name:     "github-token",
+						Usage:    "Your GitHub access token",
+						Aliases:  []string{"t"},
+						Sources:  cli.EnvVars("GITHUB_TOKEN"),
 						Required: true,
 					},
 				},
 			},
 			{
-				Name:   "company",
-				Usage:  "Get the stargazers company",
-				Action: action.Company,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "input",
-						Value: "stargazers.csv",
-					},
-				},
+				Name:   "init",
+				Usage:  "Initialize the project",
+				Action: action.Init,
+			},
+			{
+				Name:   "migrate",
+				Usage:  "Migrate the database",
+				Action: action.Migrate,
 			},
 		},
 	}

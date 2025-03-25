@@ -1,0 +1,5 @@
+repositories:
+  - owner: openstatusHQ
+    name: cli
+  - owner: openstatusHQ
+    name: goat-stack

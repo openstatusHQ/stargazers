@@ -21,19 +21,7 @@ func Company(ctx context.Context, cmd *cli.Command) error {
 	}
 	client := api.NewClient(cmd.String("github-token"))
 
-	output := cmd.String("output")
-	if output == "" {
-		output = "companies.csv"
-	}
-	file, err := os.Create(output)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-	writer.Write([]string{"User_AvatarUrl",
+	fmt.Println(strings.Join([]string{"User_AvatarUrl",
 		"User_Bio",
 		"User_Company",
 		"User_Email",
@@ -49,77 +37,61 @@ func Company(ctx context.Context, cmd *cli.Command) error {
 		"Org_Name",
 		"Org_Members",
 		"Org_Repositories",
-		"Org_WebsiteUrl"})
+		"Org_WebsiteUrl"}, ","))
 
 	companies := make(map[string]*api.Company)
 	for _, stargazer := range stargazers {
 		if stargazer.Company != "" {
-			if _, ok := companies[stargazer.Company]; !ok {
+			c, found := companies[stargazer.Company]
+			if !found {
 				login := strings.TrimPrefix(stargazer.Company, "@")
 				login = strings.Trim(login, " ")
 				company, err := client.GetCompany(login)
 				if err != nil {
-					fmt.Println("Company does not exist")
+					fmt.Println(strings.Join([]string{
+						stargazer.AvatarUrl,
+						stargazer.Bio,
+						stargazer.Company,
+						stargazer.Email,
+						fmt.Sprintf("%d", stargazer.Following),
+						fmt.Sprintf("%d", stargazer.Followers),
+						stargazer.Login,
+						stargazer.Name,
+						"",
+						"",
+						"",
+						"",
+						"",
+						"",
+						"",
+						"",
+						"",
+					}, ","))
 				} else {
-
 					companies[stargazer.Company] = company
+					fmt.Println(strings.Join([]string{
+						stargazer.AvatarUrl,
+						stargazer.Bio,
+						stargazer.Company,
+						stargazer.Email,
+						fmt.Sprintf("%d", stargazer.Following),
+						fmt.Sprintf("%d", stargazer.Followers),
+						stargazer.Login,
+						stargazer.Name,
+						c.AvatarUrl,
+						c.Description,
+						c.Email,
+						c.Location,
+						c.Login,
+						c.Name,
+						fmt.Sprintf("%d", c.Members),
+						fmt.Sprintf("%d", c.Repositories),
+						c.WebsiteUrl,
+					}, ","))
 				}
 			}
 		}
-	}
 
-	// Header
-	for _, record := range stargazers {
-		if record.Company != "" {
-			if c, ok := companies[record.Company]; ok {
-				err = writer.Write([]string{
-					record.AvatarUrl,
-					record.Bio,
-					record.Company,
-					record.Email,
-					fmt.Sprintf("%d", record.Following),
-					fmt.Sprintf("%d", record.Followers),
-					record.Login, record.Name,
-					c.AvatarUrl,
-					c.Description,
-					c.Email,
-					c.Location,
-					c.Login,
-					c.Name,
-					fmt.Sprintf("%d", c.Members),
-					fmt.Sprintf("%d", c.Repositories),
-					c.WebsiteUrl,
-				})
-			} else {
-				err = writer.Write([]string{
-					record.AvatarUrl,
-					record.Bio,
-					record.Company,
-					record.Email,
-					fmt.Sprintf("%d", record.Following),
-					fmt.Sprintf("%d", record.Followers),
-					record.Login, record.Name,
-				})
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-
-			err = writer.Write([]string{
-				record.AvatarUrl,
-				record.Bio,
-				record.Company,
-				record.Email,
-				fmt.Sprintf("%d", record.Following),
-				fmt.Sprintf("%d", record.Followers),
-				record.Login, record.Name,
-			})
-			if err != nil {
-				return err
-			}
-
-		}
 	}
 	return nil
 }

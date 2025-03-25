@@ -24,26 +24,26 @@ func NewClient(token string) *Client {
 }
 
 type Stargazer struct {
-	AvatarUrl string
-	Bio       string
+	AvatarUrl string `db:"avatar_url"`
+	Bio       string `db:"bio"`
 	Company   string
-	Email     string
-	Followers int
-	Following int
-	Login     string
-	Name      string
+	Email     string `db:"email"`
+	Followers int    `db:"followers_ct"`
+	Following int    `db:"following_ct"`
+	Login     string `db:"login"`
+	Name      string `db:"fullname"`
 }
 
 type Company struct {
-	AvatarUrl    string
-	Description   string
-	Email        string
-	Location     string
-	Login        string
-	Name         string
-	Members      int
-	Repositories int
-	WebsiteUrl   string
+	AvatarUrl    string `db:"avatar_url"`
+	Description  string `db:"description"`
+	Email        string `db:"email"`
+	Location     string `db:"location"`
+	Login        string `db:"login"`
+	Name         string `db:"name"`
+	Members      int    `db:"members_ct"`
+	Repositories int    `db:"repositories_ct"`
+	WebsiteUrl   string `db:"website_url"`
 }
 
 func (c *Client) GetStargazers(owner string, name string) ([]Stargazer, error) {
@@ -116,7 +116,7 @@ func (c *Client) GetCompany(login string) (*Company, error) {
 			Name            string
 			Login           string
 			AvatarUrl       string
-			Description      string
+			Description     string
 			Email           string
 			Location        string
 			MembersWithRole struct {
@@ -140,7 +140,7 @@ func (c *Client) GetCompany(login string) (*Company, error) {
 
 	return &Company{
 		AvatarUrl:    query.Organization.AvatarUrl,
-		Description:   query.Organization.Description,
+		Description:  query.Organization.Description,
 		Email:        query.Organization.Email,
 		Location:     query.Organization.Location,
 		Login:        query.Organization.Login,
