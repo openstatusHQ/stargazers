@@ -2,7 +2,13 @@ package api
 
 import (
 	"context"
+	"os"
+	"time"
 
+	// "os"
+
+	// "github.com/schollz/progressbar/v3"
+	"github.com/schollz/progressbar/v3"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -23,7 +29,7 @@ func NewClient(token string) *Client {
 	}
 }
 
-type Stargazer struct {
+type User struct {
 	AvatarUrl string `db:"avatar_url"`
 	Bio       string `db:"bio"`
 	Company   string
@@ -46,7 +52,7 @@ type Company struct {
 	WebsiteUrl   string `db:"website_url"`
 }
 
-func (c *Client) GetStargazers(owner string, name string) ([]Stargazer, error) {
+func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 	var query struct {
 		Repository struct {
 			Name string
@@ -82,7 +88,17 @@ func (c *Client) GetStargazers(owner string, name string) ([]Stargazer, error) {
 		"after": (*githubv4.String)(nil),
 	}
 
-	var stargazers []Stargazer
+	var stargazers []User
+	bar := progressbar.NewOptions(
+		-1,
+		progressbar.OptionSetDescription("Fetching Stargazers"),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSpinnerType(14),
+		progressbar.OptionFullWidth(),
+		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionThrottle(100*time.Millisecond),
+	)
 	for {
 		err := c.client.Query(context.Background(), &query, variables)
 		if err != nil {
@@ -91,7 +107,7 @@ func (c *Client) GetStargazers(owner string, name string) ([]Stargazer, error) {
 
 		for _, stargarer := range query.Repository.Stargazers.Nodes {
 			stargazers = append(stargazers,
-				Stargazer{
+				User{
 					AvatarUrl: stargarer.AvatarUrl,
 					Bio:       stargarer.Bio,
 					Company:   stargarer.Company,
@@ -102,11 +118,18 @@ func (c *Client) GetStargazers(owner string, name string) ([]Stargazer, error) {
 					Name:      stargarer.Name,
 				})
 		}
+		// Let's display the progress bar
+		bar.ChangeMax(query.Repository.Stargazers.TotalCount)
+		bar.Add(len(query.Repository.Stargazers.Nodes))
+
 		if !query.Repository.Stargazers.PageInfo.HasNextPage {
 			break
 		}
+
 		variables["after"] = githubv4.NewString(query.Repository.Stargazers.PageInfo.EndCursor)
 	}
+	bar.Close()
+
 	return stargazers, nil
 }
 

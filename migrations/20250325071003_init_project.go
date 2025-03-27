@@ -13,8 +13,8 @@ func init() {
 var createTableRepository = `
 CREATE TABLE repository (
 	id integer primary key,
-	owner text,
-	name text,
+	owner text NOT NULL,
+	name text NOT NULL,
 	created_at integer DEFAULT (unixepoch()),
 	updated_at integer,
 	UNIQUE(owner, name)
@@ -51,7 +51,10 @@ CREATE TABLE user (
 	followers_ct integer,
 	following_ct integer,
     fullname text,
-    login text,
+    is_stargazer integer,
+    is_watcher integer,
+    is_forker integer,
+    login text NOT NULL,
     company_id integer references company(id),
     social_data text,
     created_at integer DEFAULT (unixepoch()),

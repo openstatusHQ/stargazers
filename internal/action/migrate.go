@@ -11,18 +11,19 @@ import (
 )
 
 func Migrate(ctx context.Context, cmd *cli.Command) error {
+	output := cmd.String("output")
 
-	db, err := goose.OpenDBWithDriver("sqlite", "file:./db")
+	db, err := goose.OpenDBWithDriver("sqlite", output)
 	if err != nil {
 		return err
-		// log.Fatalf("goose: failed to open DB: %v", err)
 	}
 
-	defer func() {
+	defer func() error {
 		if err := db.Close(); err != nil {
-			return
+			return err
 			// log.Fatalf("goose: failed to close DB: %v", err)
 		}
+		return nil
 	}()
 
 	if err := goose.Up(db, "."); err != nil {

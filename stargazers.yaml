@@ -3,3 +3,5 @@ repositories:
     name: cli
   - owner: openstatusHQ
     name: goat-stack
+  - owner: openstatusHQ
+    name: data-table-filters

@@ -1,14 +1,18 @@
 package db
 
 import (
+	"path/filepath"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/pressly/goose/v3"
 	_ "thibaultleouay.dev/stargazers/migrations"
 )
 
-func New() *sqlx.DB {
+func New(path string) *sqlx.DB {
 
-	db, err := sqlx.Open("sqlite", "file:./db")
+	fn := filepath.Join(".", path)
+
+	db, err := sqlx.Open("sqlite", fn)
 
 	if err != nil {
 		panic(err)
@@ -17,7 +21,7 @@ func New() *sqlx.DB {
 	if err := goose.SetDialect("sqlite"); err != nil {
 		panic(err)
 	}
-
+	goose.SetLogger(goose.NopLogger())
 	if err := goose.Up(db.DB, "."); err != nil {
 		panic(err)
 	}
