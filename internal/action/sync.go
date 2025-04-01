@@ -38,13 +38,25 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 			return err
 		}
 
-		tx := database.MustBegin()
 		for _, record := range stargazers {
 			var res sql.Result
 			if record.Company != "" {
-				r := tx.MustExec("INSERT INTO company (login) VALUES ($1) ON CONFLICT(login) DO NOTHING", record.Company)
-				id, _ := r.LastInsertId()
-				res = tx.MustExec(`INSERT INTO user(
+				var companyId int64
+				company := struct {
+					Login string `db:"login"`
+					Id    int64  `db:"id"`
+				}{}
+
+				err := database.Get(&company, "SELECT login, id FROM company WHERE login = $1", record.Company)
+
+				if err != nil {
+					r := database.MustExec("INSERT INTO company (login) VALUES ($1) ON CONFLICT(login) DO NOTHING", record.Company)
+					companyId, _ = r.LastInsertId()
+				} else {
+					companyId = company.Id
+				}
+
+				res = database.MustExec(`INSERT INTO user(
 							avatar_url,
 				 			bio,
 							email,
@@ -53,13 +65,14 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 							fullname,
 							is_stargazer,
 							login,
-							company_id) VALUES (
+							company_id
+							) VALUES (
 							$1, $2, $3, $4, $5, $6, $7, $8, $9
 							) ON CONFLICT(login) DO NOTHING
-					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following, time.Now().Unix(), record.Name, record.Login, id)
+					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following,record.Name, time.Now().Unix(),  record.Login, companyId)
 
 			} else {
-				res = tx.MustExec(`INSERT INTO user(
+				res = database.MustExec(`INSERT INTO user(
 							avatar_url,
 				 			bio,
 							email,
@@ -71,18 +84,12 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 							) VALUES (
 							$1, $2, $3, $4, $5, $6, $7, $8
 							) ON CONFLICT(login) DO NOTHING
-					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following, time.Now().Unix(), record.Name, record.Login)
+					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following,  record.Name, time.Now().Unix(), record.Login)
 			}
-
 			id, _ := res.LastInsertId()
-			tx.MustExec("INSERT INTO users_to_repositories(user_id, repository_id) VALUES ($1, $2) ", id, repo.Id)
-		}
-		err = tx.Commit()
-		if err != nil {
-			return err
+			database.MustExec("INSERT INTO users_to_repositories(user_id, repository_id) VALUES ($1, $2) ", id, repo.Id)
 		}
 	}
-	tx := database.MustBegin()
 	companies := []struct {
 		Login string `db:"login"`
 	}{}
@@ -107,7 +114,7 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 			login = strings.Trim(login, "@")
 			apiCompany, err := client.GetCompany(login)
 			if err == nil {
-				tx.MustExec(`UPDATE company SET
+				database.MustExec(`UPDATE company SET
 				avatar_url = $1,
 				description = $2,
 				email = $3,
@@ -133,7 +140,6 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 
 	}
 	bar.Close()
-	tx.Commit()
 	fmt.Fprintln(os.Stderr, "\nCompany data fetched" )
 	return nil
 }

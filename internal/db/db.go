@@ -6,6 +6,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/pressly/goose/v3"
 	_ "thibaultleouay.dev/stargazers/migrations"
+	_ "modernc.org/sqlite"
+
 )
 
 func New(path string) *sqlx.DB {
