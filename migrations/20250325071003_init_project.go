@@ -56,7 +56,9 @@ CREATE TABLE user (
     is_forker integer,
     login text NOT NULL,
     company_id integer references company(id),
-    social_data text,
+    twitter_url text,
+    bsky_url text,
+    linkedin_url text,
     created_at integer DEFAULT (unixepoch()),
     updated_at integer,
     UNIQUE(login)

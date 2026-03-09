@@ -17,6 +17,8 @@ import (
 func Sync(ctx context.Context, cmd *cli.Command) error {
 	output := cmd.String("output")
 
+	stargazersOnly := cmd.Bool("stargazers-only")
+
 	var database = db.New(output)
 
 	client := api.NewClient(cmd.String("github-token"))
@@ -40,7 +42,7 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 
 		for _, record := range stargazers {
 			var res sql.Result
-			if record.Company != "" {
+			if record.Company != "" && !stargazersOnly {
 				var companyId int64
 				company := struct {
 					Login string `db:"login"`
@@ -65,11 +67,12 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 							fullname,
 							is_stargazer,
 							login,
-							company_id
+							company_id,
+							linkedin_url
 							) VALUES (
-							$1, $2, $3, $4, $5, $6, $7, $8, $9
+							$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 							) ON CONFLICT(login) DO NOTHING
-					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following,record.Name, time.Now().Unix(),  record.Login, companyId)
+					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following,record.Name, time.Now().Unix(),  record.Login, companyId, record.LinkedinUrl)
 
 			} else {
 				res = database.MustExec(`INSERT INTO user(
@@ -80,15 +83,19 @@ func Sync(ctx context.Context, cmd *cli.Command) error {
 							following_ct,
 							fullname,
 							is_stargazer,
-							login
+							login,
+							linkedin_url
 							) VALUES (
-							$1, $2, $3, $4, $5, $6, $7, $8
+							$1, $2, $3, $4, $5, $6, $7, $8, $9
 							) ON CONFLICT(login) DO NOTHING
-					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following,  record.Name, time.Now().Unix(), record.Login)
+					`, record.AvatarUrl, record.Bio, record.Email, record.Followers, record.Following,  record.Name, time.Now().Unix(), record.Login, record.LinkedinUrl)
 			}
 			id, _ := res.LastInsertId()
 			database.MustExec("INSERT INTO users_to_repositories(user_id, repository_id) VALUES ($1, $2) ", id, repo.Id)
 		}
+	}
+	if(stargazersOnly) {
+		return nil
 	}
 	companies := []struct {
 		Login string `db:"login"`

@@ -38,6 +38,7 @@ type User struct {
 	Following int    `db:"following_ct"`
 	Login     string `db:"login"`
 	Name      string `db:"fullname"`
+	LinkedinUrl string `db:"linkedin_url"`
 }
 
 type Company struct {
@@ -74,6 +75,13 @@ func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 					Following struct {
 						TotalCount int
 					}
+					SocialAccounts struct {
+						Nodes []struct {
+							Provider githubv4.SocialAccountProvider
+							URL  string
+						}
+						TotalCount int
+					}	`graphql:"socialAccounts(first: 10)"`
 					Login string
 					Name  string
 				}
@@ -106,6 +114,15 @@ func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 		}
 
 		for _, stargarer := range query.Repository.Stargazers.Nodes {
+
+			linkedinUrl := ""
+			for _, n := range stargarer.SocialAccounts.Nodes {
+				if n.Provider == githubv4.SocialAccountProviderLinkedIn {
+					linkedinUrl = n.URL
+					break
+				}
+			}
+
 			stargazers = append(stargazers,
 				User{
 					AvatarUrl: stargarer.AvatarUrl,
@@ -116,6 +133,7 @@ func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 					Followers: stargarer.Followers.TotalCount,
 					Login:     stargarer.Login,
 					Name:      stargarer.Name,
+					LinkedinUrl: linkedinUrl,
 				})
 		}
 		// Let's display the progress bar

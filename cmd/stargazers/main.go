@@ -49,6 +49,12 @@ func main() {
 						Sources:  cli.EnvVars("GITHUB_TOKEN"),
 						Required: true,
 					},
+					&cli.BoolFlag{
+						Name:     "stargazers-only",
+						Usage:    "Sync only repositories with stargazers",
+						Aliases:  []string{"s"},
+						Value:    true,
+					},
 				},
 			},
 			{
