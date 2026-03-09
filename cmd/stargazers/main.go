@@ -31,8 +31,8 @@ func main() {
 						Usage: "Delete a repository",
 					},
 					{
-						Name:  "view",
-						Usage: "View all your repositories",
+						Name:   "view",
+						Usage:  "View all your repositories",
 						Action: action.RepoView,
 					},
 				},
@@ -50,10 +50,16 @@ func main() {
 						Required: true,
 					},
 					&cli.BoolFlag{
-						Name:     "stargazers-only",
-						Usage:    "Sync only repositories with stargazers",
-						Aliases:  []string{"s"},
-						Value:    true,
+						Name:    "stargazers-only",
+						Usage:   "Sync only repositories with stargazers",
+						Aliases: []string{"s"},
+						Value:   true,
+					},
+					&cli.BoolFlag{
+						Name:    "full",
+						Usage:   "Ignore saved cursors and re-fetch all stargazers",
+						Aliases: []string{"f"},
+						Value:   false,
 					},
 				},
 			},
@@ -78,13 +84,13 @@ func main() {
 			},
 		},
 		Flags: []cli.Flag{
-            &cli.StringFlag{
-                Name:  "output",
-                Value: "db",
-                Aliases: []string{"o"},
-                Usage: "The name of the output Database",
-            },
-        },
+			&cli.StringFlag{
+				Name:    "output",
+				Value:   "db",
+				Aliases: []string{"o"},
+				Usage:   "The name of the output Database",
+			},
+		},
 	}
 	if err := app.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
