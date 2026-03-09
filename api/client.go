@@ -13,6 +13,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type GitHubClient interface {
+	GetStargazers(owner, name, startCursor string) ([]User, string, error)
+	GetCompany(login string) (*Company, error)
+}
+
 type Client struct {
 	client *githubv4.Client
 }

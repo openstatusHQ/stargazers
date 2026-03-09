@@ -1,124 +1,121 @@
-# Stargazers - Project Research
+# Stargazers Insights - Project Research
 
-## What It Does
+## Overview
 
-A Go CLI tool that fetches and analyzes stargazers of GitHub repositories. It pulls user data via GitHub's GraphQL API, enriches it with company/organization info, and stores everything in a local SQLite database.
-
-**Core features:**
-- Fetch stargazer data (bio, email, followers, social links) from GitHub
-- Enrich company data from GitHub organizations
-- Track multiple repositories via YAML config
-- Persist all data locally in SQLite
-- Display repository info in ASCII tables with progress bars during sync
+A Go CLI tool that fetches and stores GitHub stargazer data for specified repositories. It uses the GitHub GraphQL API (v4) to pull user and company information about people who starred your repos, storing everything in a local SQLite database for analysis.
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Language | Go 1.23.5 |
-| CLI framework | `urfave/cli/v3` (beta) |
-| Database | SQLite via `modernc.org/sqlite` + `jmoiron/sqlx` |
-| Migrations | `pressly/goose/v3` |
-| GitHub API | `shurcooL/githubv4` (GraphQL) |
-| Auth | `golang.org/x/oauth2` |
-| Config | `knadh/koanf/v2` (YAML) |
-| UI | `rodaine/table` (ASCII tables), `schollz/progressbar/v3` |
+- **Language**: Go 1.25
+- **CLI Framework**: `urfave/cli/v3`
+- **GitHub API**: `shurcooL/githubv4` (GraphQL v4 API via `golang.org/x/oauth2`)
+- **Database**: SQLite via `modernc.org/sqlite` (pure Go, no CGo) + `jmoiron/sqlx`
+- **Migrations**: `pressly/goose/v3` (Go-based migrations, no SQL files)
+- **Config**: `knadh/koanf` (YAML config parsing)
+- **UX**: `schollz/progressbar/v3` (progress bars), `rodaine/table` (table output)
+- **VCS**: Git + Jujutsu (`.jj` directory present)
 
 ## Project Structure
 
 ```
-stargazers/
-├── api/
-│   └── client.go              # GitHub GraphQL client (GetStargazers, GetCompany)
-├── cmd/stargazers/
-│   └── main.go                # CLI entry point, command definitions
+├── cmd/stargazers/main.go    # CLI entrypoint with command definitions
+├── api/client.go             # GitHub GraphQL client (stargazers + company fetching)
 ├── internal/
-│   ├── action/
-│   │   ├── init.go            # Load repos from YAML into DB
-│   │   ├── sync.go            # Fetch stargazers + enrich companies
-│   │   ├── repo.go            # Repo list/add/delete commands
-│   │   └── migrate.go         # Run DB migrations
-│   ├── config/
-│   │   └── config.go          # YAML config loader
-│   └── db/
-│       └── db.go              # SQLite connection setup
+│   ├── action/               # CLI command handlers
+│   │   ├── init.go           # Reads config, seeds repos into DB
+│   │   ├── sync.go           # Fetches stargazers from GitHub, upserts into DB
+│   │   ├── repo.go           # Lists repos in a table
+│   │   └── migrate.go        # Manual DB migration command (hidden)
+│   ├── config/config.go      # YAML config reader (koanf)
+│   └── db/db.go              # SQLite connection + auto-migration on open
 ├── migrations/
-│   └── 20250325071003_init_project.go  # Schema (goose migration)
-├── stargazers.yaml            # Config: list of repos to track
+│   ├── 20250325071003_init_project.go    # Initial schema (user, company, repository, users_to_repositories, sync)
+│   └── 20260309083416_add_sync_cursor.go # Adds cursor-based pagination support
+├── stargazers.yaml           # Config file listing repos to track
 ├── go.mod / go.sum
-└── README.md
+└── .gitignore                # Ignores *.db and db files
 ```
 
-## Database Schema
+## Database Schema (SQLite)
 
-5 tables:
+### Tables
 
-- **repository** - Tracked GitHub repos (owner, name)
-- **user** - Stargazer profiles (login, avatar, bio, email, followers, following, company_id, linkedin_url, twitter_url, bsky_url)
-- **company** - Enriched org data (login, name, description, email, location, members_ct, repositories_ct, website_url)
-- **users_to_repositories** - Many-to-many junction (user_id, repository_id)
-- **sync** - Sync history log (synced_type, synced_data, synced_at)
+1. **repository** - Tracked GitHub repos
+   - `id`, `owner`, `name`, `created_at`, `updated_at`
+   - `last_cursor` (text) - pagination cursor for incremental sync
+   - `last_synced_at` (integer) - unix timestamp of last sync
+   - Unique constraint on `(owner, name)`
 
-Relationships: `user.company_id -> company.id`, junction table links users to repos.
+2. **user** - Stargazer profiles
+   - `id`, `avatar_url`, `bio`, `email`, `enrichment_data`, `followers_ct`, `following_ct`
+   - `fullname`, `is_stargazer`, `is_watcher`, `is_forker`, `login`
+   - `company_id` (FK to company), `twitter_url`, `bsky_url`, `linkedin_url`
+   - `created_at`, `updated_at`
+   - Unique constraint on `login`
+
+3. **company** - Organizations extracted from user profiles
+   - `id`, `avatar_url`, `description`, `email`, `name`, `location`, `login`
+   - `members_ct`, `repositories_ct`, `website_url`
+   - `created_at`, `updated_at`
+   - Unique constraint on `login`
+
+4. **users_to_repositories** - Many-to-many join table
+   - `id`, `user_id` (FK), `repository_id` (FK), `created_at`
+   - Unique index on `(user_id, repository_id)`
+
+5. **sync** - Sync log (defined but not actively used in code)
+   - `id`, `synced_type`, `synced_data`, `synced_at`, `created_at`
 
 ## CLI Commands
 
 | Command | Description |
-|---------|-------------|
-| `init` | Seed DB with repos from `stargazers.yaml` |
-| `sync` | Fetch stargazers from GitHub, optionally enrich companies |
-| `repo view` | Display tracked repositories |
-| `repo add` | *Not yet implemented* |
-| `repo delete` | *Not yet implemented* |
-| `migrate` | Run DB migrations (hidden command) |
+|---------|------------|
+| `stargazers init -c stargazers.yaml` | Read YAML config and insert repos into DB |
+| `stargazers sync -t <GITHUB_TOKEN>` | Fetch stargazers for all repos via GitHub API |
+| `stargazers sync --full` | Ignore saved cursors and re-fetch everything |
+| `stargazers sync --stargazers-only=false` | Also fetch company/org data |
+| `stargazers repo view` | Print tracked repos as a table |
+| `stargazers migrate` | Run DB migrations (hidden command) |
 
-**Key flags:**
-- `--github-token` / `-t` (or `GITHUB_TOKEN` env var) - Required for sync
-- `--stargazers-only` / `-s` - Skip company enrichment (default: true)
-- `--output` / `-o` - DB file name (default: "db")
-- `--config` / `-c` - Config file path (default: "stargazers.yaml")
+Global flag: `--output` / `-o` (default: `db`) - SQLite database file path.
 
-## Data Flow (Sync)
+## Data Flow
 
-1. Open SQLite DB, run migrations
-2. Load all repos from DB
-3. For each repo, paginate through GitHub GraphQL API (100 stargazers/page)
-4. Upsert each user into `user` table, link via junction table
-5. If `--stargazers-only=false`: fetch org details for each company, upsert into `company` table
+1. **Init**: User creates `stargazers.yaml` listing repos -> `init` command inserts them into the `repository` table
+2. **Sync**: For each repo in DB:
+   - Fetches stargazers via GitHub GraphQL API (paginated, 100 per request)
+   - Supports incremental sync via saved `last_cursor` (skips already-fetched pages)
+   - Upserts each user into `user` table (ON CONFLICT UPDATE)
+   - Links users to repos via `users_to_repositories`
+   - If `--stargazers-only=false`: also creates company records and fetches org details from GitHub
+   - Saves the final pagination cursor + timestamp to `repository.last_cursor`
 
-Uses `ON CONFLICT DO NOTHING` for deduplication. Progress bars shown during long operations.
+## Key Data Collected Per Stargazer
 
-## GitHub API Usage
+- Profile: avatar, bio, email, name, login
+- Social: followers count, following count, LinkedIn URL, Bluesky URL
+- Company: organization affiliation (resolved to GitHub org when prefixed with `@`)
 
-Two GraphQL queries in `api/client.go`:
-- **GetStargazers** - Paginated stargazer list with user metadata + social accounts (LinkedIn)
-- **GetCompany** - Organization details (members count, repos count, website, etc.)
+## Notable Patterns & Design Decisions
 
-Auth via OAuth2 personal access token passed as static token source.
+- **Auto-migration on DB open**: `db.New()` runs `goose.Up()` every time, so migrations are always applied transparently
+- **Incremental sync**: Cursor-based pagination allows fetching only new stargazers since last sync
+- **Pure Go SQLite**: Uses `modernc.org/sqlite` (no CGo dependency), making cross-compilation easier
+- **Progress bars on stderr**: All progress/status output goes to stderr, keeping stdout clean for data
+- **`is_stargazer` stored as unix timestamp**: The field stores `time.Now().Unix()` rather than a boolean - it records *when* the user was seen as a stargazer
 
-## Configuration
+## Existing Database Files
 
-`stargazers.yaml` defines repos to track:
-```yaml
-repositories:
-  - owner: openstatusHQ
-    name: openstatus
-```
+- `database-openstatus.db` - Pre-existing database (likely from a previous run for the openstatus repo)
+- `db` - Active database file (gitignored)
 
-Loaded via koanf with YAML parser into `config.Config` struct.
+## Potential Improvements / Observations
 
-## Current State
-
-- Module: `thibaultleouay.dev/stargazers` v0.0.1
-- Active SQLite DB (`database-openstatus.db`, ~1.6MB) exists with real data
-- `repo add` and `repo delete` commands are stubbed but not implemented
-- Version control uses Jujutsu (jj) alongside git
-- `.gitignore` excludes `*.db` files
-
-## Observations
-
-- The `--stargazers-only` flag defaults to `true`, meaning company enrichment is opt-in
-- Social account extraction currently only handles LinkedIn from the GitHub GraphQL response; Twitter and Bluesky fields exist in the schema but aren't populated from the API
-- The sync command doesn't track incremental progress - it re-fetches all stargazers each run (no cursor persistence between runs)
-- The `sync` table exists for logging but its usage pattern suggests it logs each sync operation rather than enabling incremental fetches
-- No export functionality yet (CSV, JSON, etc.) - data lives only in SQLite
+- **`repo add` and `repo delete` commands are defined but have no Action handler** - they're stubs
+- **`sync` table is created but never written to** - appears to be planned but unused
+- **`is_watcher` and `is_forker` columns exist but are never populated** - schema supports watchers/forkers but the API only fetches stargazers
+- **`twitter_url` column exists in schema but code writes `linkedin_url` and `bsky_url`** - Twitter/X fetching not implemented
+- **`enrichment_data` column exists but is never used** - likely planned for future enrichment integrations
+- **Company data fetch only works for `@`-prefixed company fields** - free-text company names are inserted as-is without org lookup
+- **No export/query commands** - data is collected into SQLite but there's no built-in way to query or export it (users presumably use external tools like `sqlite3` or datasette)
+- **Error handling in sync is mixed** - uses `MustExec` (panics on error) for inserts but graceful error handling for selects

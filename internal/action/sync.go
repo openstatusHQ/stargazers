@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v3"
 	"thibaultleouay.dev/stargazers/api"
@@ -16,14 +17,14 @@ import (
 
 func Sync(ctx context.Context, cmd *cli.Command) error {
 	output := cmd.String("output")
-
 	stargazersOnly := cmd.Bool("stargazers-only")
 	fullSync := cmd.Bool("full")
-
-	var database = db.New(output)
-
+	database := db.New(output)
 	client := api.NewClient(cmd.String("github-token"))
+	return doSync(database, client, stargazersOnly, fullSync)
+}
 
+func doSync(database *sqlx.DB, client api.GitHubClient, stargazersOnly bool, fullSync bool) error {
 	repos := []struct {
 		Id         int            `db:"id"`
 		Name       string         `db:"name"`

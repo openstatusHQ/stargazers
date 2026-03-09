@@ -3,6 +3,7 @@ package action
 import (
 	"context"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/rodaine/table"
 	"github.com/urfave/cli/v3"
 	"thibaultleouay.dev/stargazers/internal/db"
@@ -10,9 +11,11 @@ import (
 
 func RepoView(ctx context.Context, cmd *cli.Command) error {
 	output := cmd.String("output")
+	database := db.New(output)
+	return doRepoView(database)
+}
 
-	database  := db.New(output)
-
+func doRepoView(database *sqlx.DB) error {
 	repos := []struct {
 		Id    int    `db:"id"`
 		Name  string `db:"name"`
