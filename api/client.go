@@ -13,6 +13,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type GitHubClient interface {
+	GetStargazers(owner, name, startCursor string) ([]User, string, error)
+	GetCompany(login string) (*Company, error)
+}
+
 type Client struct {
 	client *githubv4.Client
 }
@@ -30,14 +35,16 @@ func NewClient(token string) *Client {
 }
 
 type User struct {
-	AvatarUrl string `db:"avatar_url"`
-	Bio       string `db:"bio"`
-	Company   string
-	Email     string `db:"email"`
-	Followers int    `db:"followers_ct"`
-	Following int    `db:"following_ct"`
-	Login     string `db:"login"`
-	Name      string `db:"fullname"`
+	AvatarUrl   string `db:"avatar_url"`
+	Bio         string `db:"bio"`
+	Company     string
+	Email       string `db:"email"`
+	Followers   int    `db:"followers_ct"`
+	Following   int    `db:"following_ct"`
+	Login       string `db:"login"`
+	Name        string `db:"fullname"`
+	LinkedinUrl string `db:"linkedin_url"`
+	BskyUrl     string `db:"bsky_url"`
 }
 
 type Company struct {
@@ -52,7 +59,7 @@ type Company struct {
 	WebsiteUrl   string `db:"website_url"`
 }
 
-func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
+func (c *Client) GetStargazers(owner string, name string, startCursor string) ([]User, string, error) {
 	var query struct {
 		Repository struct {
 			Name string
@@ -74,6 +81,13 @@ func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 					Following struct {
 						TotalCount int
 					}
+					SocialAccounts struct {
+						Nodes []struct {
+							Provider githubv4.SocialAccountProvider
+							URL  string
+						}
+						TotalCount int
+					}	`graphql:"socialAccounts(first: 10)"`
 					Login string
 					Name  string
 				}
@@ -81,11 +95,16 @@ func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
+	var after *githubv4.String
+	if startCursor != "" {
+		after = githubv4.NewString(githubv4.String(startCursor))
+	}
+
 	variables := map[string]any{
 		"owner": githubv4.String(owner),
 		"name":  githubv4.String(name),
 		"first": githubv4.Int(100),
-		"after": (*githubv4.String)(nil),
+		"after": after,
 	}
 
 	var stargazers []User
@@ -102,20 +121,34 @@ func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 	for {
 		err := c.client.Query(context.Background(), &query, variables)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		for _, stargarer := range query.Repository.Stargazers.Nodes {
+
+			linkedinUrl := ""
+			bskyUrl := ""
+			for _, n := range stargarer.SocialAccounts.Nodes {
+				if n.Provider == githubv4.SocialAccountProviderLinkedIn {
+					linkedinUrl = n.URL
+				}
+				if n.Provider == "BLUESKY" {
+					bskyUrl = n.URL
+				}
+			}
+
 			stargazers = append(stargazers,
 				User{
-					AvatarUrl: stargarer.AvatarUrl,
-					Bio:       stargarer.Bio,
-					Company:   stargarer.Company,
-					Email:     stargarer.Email,
-					Following: stargarer.Following.TotalCount,
-					Followers: stargarer.Followers.TotalCount,
-					Login:     stargarer.Login,
-					Name:      stargarer.Name,
+					AvatarUrl:   stargarer.AvatarUrl,
+					Bio:         stargarer.Bio,
+					Company:     stargarer.Company,
+					Email:       stargarer.Email,
+					Following:   stargarer.Following.TotalCount,
+					Followers:   stargarer.Followers.TotalCount,
+					Login:       stargarer.Login,
+					Name:        stargarer.Name,
+					LinkedinUrl: linkedinUrl,
+					BskyUrl:     bskyUrl,
 				})
 		}
 		// Let's display the progress bar
@@ -130,7 +163,8 @@ func (c *Client) GetStargazers(owner string, name string) ([]User, error) {
 	}
 	bar.Close()
 
-	return stargazers, nil
+	finalCursor := string(query.Repository.Stargazers.PageInfo.EndCursor)
+	return stargazers, finalCursor, nil
 }
 
 func (c *Client) GetCompany(login string) (*Company, error) {

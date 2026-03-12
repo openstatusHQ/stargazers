@@ -1,7 +1,5 @@
 repositories:
   - owner: openstatusHQ
-    name: cli
-  - owner: openstatusHQ
-    name: goat-stack
-  - owner: openstatusHQ
-    name: data-table-filters
+    name: openstatus
+  # - owner: openstatusHQ
+  #   name: data-table-filters
